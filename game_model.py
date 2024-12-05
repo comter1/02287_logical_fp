@@ -22,10 +22,10 @@ def initialize_strategy():
 # Choose a strategy
 def choose_strategy(strategy_rewards, strategy_counts, epsilon=0.1):
     if random.random() < epsilon:
-        return random.choice(['fold', 'call', 'raise'])
+        return random.choice(['fold', 'call', 'raise', 'check'])
     else:
         avg_rewards = {action: strategy_rewards[action] / (strategy_counts[action] + 1e-5)
-                       for action in ['fold', 'call', 'raise']}
+                       for action in ['fold', 'call', 'raise', 'check']}
         return max(avg_rewards, key=avg_rewards.get)
 
 # Update strategy rewards
@@ -40,9 +40,7 @@ def classify_action(hand_strength, action):
             return 'bluff'
         return 'truthful'
     elif hand_strength == 2:  # Medium-strength hand
-        if action == 'call':
-            return 'truthful'
-        if action == 'raise':
+        if action == 'call' or action == 'raise':
             return 'truthful'
         return 'slowplay'
     else:  # Strong hand
@@ -89,6 +87,8 @@ def betting_round(players, pot, raise_amount, max_raises, community_card, strate
                     player['stack'] -= to_call
                     player['current_bet'] += to_call
                     pot += to_call
+                else:
+                    player['folded'] = True  # Fold if they cannot afford the call
             elif action == 'raise' and num_raises < max_raises:
                 to_raise = raise_amount + (current_bet - player['current_bet'])
                 if player['stack'] >= to_raise:
@@ -97,6 +97,10 @@ def betting_round(players, pot, raise_amount, max_raises, community_card, strate
                     pot += to_raise
                     current_bet += raise_amount
                     num_raises += 1
+                else:
+                    player['folded'] = True  # Fold if they cannot afford the raise
+            elif action == 'check':
+                action_order.reverse()  # Swap first player advantage
 
             active_players = [pid for pid, p in players.items() if not p['folded']]
             if len(active_players) == 1:
