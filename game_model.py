@@ -9,9 +9,16 @@ def initialize_game():
 
 # Evaluate the strength of the hand and community card
 def evaluate_hand(player_hand, community_card):
+    hand_values = {'J': 1, 'Q': 2, 'K': 3}
+    if community_card is None:
+        # First round: Evaluate only the player's hand
+        return hand_values[player_hand]
     if player_hand == community_card:
         return 4  # Pair
-    return {'J': 1, 'Q': 2, 'K': 3}[player_hand]  # Strength of a single card
+    # Community card effect: stronger hand beats the community card
+    if hand_values[player_hand] > hand_values[community_card]:
+        return 3  # Stronger hand
+    return hand_values[player_hand]  # Weak hand
 
 # Initialize strategies
 def initialize_strategy():
@@ -20,17 +27,17 @@ def initialize_strategy():
     return strategy_rewards, strategy_counts
 
 # Choose a strategy
-def choose_strategy(strategy_rewards, strategy_counts, epsilon=0.1):
-    if random.random() < epsilon:
+def choose_strategy(strategy_rewards, strategy_counts, epsilon=0.3):
+    if random.random() < epsilon:  # Explore new strategies
         return random.choice(['fold', 'call', 'raise', 'check'])
-    else:
+    else:  # Exploit the best-known strategy
         avg_rewards = {action: strategy_rewards[action] / (strategy_counts[action] + 1e-5)
                        for action in ['fold', 'call', 'raise', 'check']}
         return max(avg_rewards, key=avg_rewards.get)
 
 # Update strategy rewards
-def update_strategy(strategy_rewards, strategy_counts, action, reward):
-    strategy_rewards[action] += reward
+def update_strategy(strategy_rewards, strategy_counts, action, reward, alpha=0.1):
+    strategy_rewards[action] = (1 - alpha) * strategy_rewards[action] + alpha * reward
     strategy_counts[action] += 1
 
 # Classify actions into behavior categories
@@ -40,7 +47,7 @@ def classify_action(hand_strength, action):
             return 'bluff'
         return 'truthful'
     elif hand_strength == 2:  # Medium-strength hand
-        if action == 'call' or action == 'raise':
+        if action in ['call', 'raise']:
             return 'truthful'
         return 'slowplay'
     else:  # Strong hand
@@ -51,7 +58,7 @@ def classify_action(hand_strength, action):
         return 'truthful'
 
 # Betting round logic
-def betting_round(players, pot, raise_amount, max_raises, community_card, strategies, phase):
+def betting_round(players, pot, raise_amount, max_raises, community_card, strategies):
     num_raises = 0
     current_bet = 1
     action_order = [1, 2]
@@ -138,13 +145,13 @@ def simulate_game(strategies):
     community_card = deck.pop(0)
 
     # First betting round
-    pot, winner, strategy_log1, behavior_log1 = betting_round(players, pot, 2, 2, None, strategies, "first")
+    pot, winner, strategy_log1, behavior_log1 = betting_round(players, pot, 2, 2, None, strategies)
     if winner:
         players[winner]['stack'] += pot  # Distribute chips
         return winner, pot, strategy_log1, behavior_log1
 
     # Second betting round
-    pot, winner, strategy_log2, behavior_log2 = betting_round(players, pot, 4, 2, community_card, strategies, "second")
+    pot, winner, strategy_log2, behavior_log2 = betting_round(players, pot, 4, 2, community_card, strategies)
     if winner:
         players[winner]['stack'] += pot  # Distribute chips
         behavior_log1.update(behavior_log2)
@@ -158,7 +165,7 @@ def simulate_game(strategies):
     return winner, pot, strategy_log1, behavior_log1
 
 # Run multiple games
-def monte_carlo_simulation(num_simulations=100):
+def monte_carlo_simulation(num_simulations=1000):
     results = defaultdict(int)
     strategies = {
         1: initialize_strategy(),
@@ -180,7 +187,7 @@ def monte_carlo_simulation(num_simulations=100):
     return results, behavior_summary, strategy_chips
 
 # Execute simulation
-simulation_results, behavior_summary, strategy_chips = monte_carlo_simulation(100)
+simulation_results, behavior_summary, strategy_chips = monte_carlo_simulation(1000)
 
 # Output results
 print("Simulation Results:")
